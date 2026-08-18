@@ -1,0 +1,3 @@
+# Generated reports can include local paths and private source-derived content.
+reports/*
+!reports/.gitkeep
