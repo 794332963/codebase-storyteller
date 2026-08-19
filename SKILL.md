@@ -2,7 +2,7 @@
 name: codebase-storyteller
 description: 仅在用户显式输入 `$codebase-storyteller` 时使用。用户只需给出一个或多个本地代码仓库名称和可选业务名称；本 skill 会读取指定分支的真实代码，并自动将详细、中文、图文并茂的业务梳理报告保存到 skill 的 reports 目录，帮助后端开发者快速理解实体、状态、主链路、异步补偿、字段流转、上下游和排障入口。
 metadata:
-  version: "2.1.0"
+  version: "2.3.0"
   output: "offline self-contained HTML by default, Markdown on request"
 ---
 
@@ -12,12 +12,12 @@ metadata:
 
 ## 1. 仓库配置
 
-本节是持久化配置。首次使用前填写 `repository_root`，或在 `repository_paths` 中为仓库设置绝对路径。用户可以直接修改这一段。
+公开版的 `SKILL.md` 不保存用户机器路径。实际持久化配置固定存放在 skill 根目录的 `config.local.yaml`，该文件被 Git 忽略，不能提交到公开仓库。
 
 ```yaml
 repository_root: "" # 例如 /workspace；定位规则为 {repository_root}/{repository_name}
 repository_paths: {} # 例如 { order-service: /Users/me/Projects/order-service }
-target_branch: release
+target_branch: auto # auto 表示读取目标仓库的默认分支；也可指定 main、release 等
 editor:
   kind: vscode # vscode | cursor | jetbrains
   uri_template: "vscode://file/{path}:{line}:1"
@@ -26,11 +26,12 @@ editor:
 
 配置规则：
 
-- 每次运行先读取并检查此配置。
+- 每次运行先读取 `config.local.yaml`，不得把公开的示例块当作未配置的本机状态。
+- `config.local.yaml` 存在且字段完整时，直接复用；同一会话或后续调用不得重复询问仓库根目录或编辑器。
 - `repository_paths[仓库名]` 优先于 `repository_root/仓库名`。
 - `repository_root` 为空且目标仓库没有映射时，停止并只询问：`你的代码仓库都放在哪个本地路径下？`
-- 得到用户路径后，写回本节的 `repository_root`，再继续执行；配置缺失时不得扫描仓库或生成报告。
-- 默认目标分支是 `release`。用户可修改 `target_branch`；单次调用明确指定分支时，以用户指定为准。
+- 得到用户路径后，创建或更新 `config.local.yaml`，再继续执行；配置缺失时不得扫描仓库或生成报告。
+- 默认目标分支是 `auto`：读取目标仓库的默认分支。用户可将 `target_branch` 固定为 `main`、`release` 或其他分支；单次调用明确指定分支时，以用户指定为准。
 - `editor.kind` 是必配项。首次配置仓库后若未配置编辑器，停止并询问：`你默认使用哪个代码编辑器：VS Code、Cursor，还是 JetBrains IDE（IntelliJ IDEA、GoLand 等）？`
 - 在 macOS 上优先用 `open -Ra` 检查用户选择的应用是否已安装，再写回配置；检测到多个编辑器时仍以用户选择为准。
 - `vscode` 使用 `vscode://file/{path}:{line}:1`，`cursor` 使用 `cursor://file/{path}:{line}:1`。
@@ -74,7 +75,7 @@ $codebase-storyteller
 
 ### Step 0: 配置检查
 
-1. 读取第 1 节配置。
+1. 读取 skill 根目录的 `config.local.yaml`。
 2. 根据映射或根目录解析每个仓库的绝对路径。
 3. 验证目录存在且是 Git 仓库。路径无效时列出无效仓库和解析路径，停止等待用户修正。
 4. 仓库或编辑器配置缺失时按第 1 节提问并持久化配置，不进行后续动作。
@@ -83,9 +84,9 @@ $codebase-storyteller
 
 只通过 Git 读取目标分支内容，绝不执行 `git checkout`、`git switch`、`git reset` 或改动用户工作区。
 
-1. 依次确认 `refs/heads/<target_branch>`、`refs/remotes/*/<target_branch>` 是否存在。
-2. 若存在，记录完整 ref 与 commit SHA，并使用该 ref 的 tree 和 blob 进行后续搜索、读取和行号计算。
-3. 若不存在，识别默认分支（优先 `refs/remotes/origin/HEAD`，其次本地 `HEAD` 的分支）；记录回退原因。
+1. 若 `target_branch=auto`，识别默认分支：优先 `refs/remotes/origin/HEAD`，其次当前本地 `HEAD` 指向的分支；记录完整 ref 与 commit SHA。
+2. 若 `target_branch` 被指定，依次确认 `refs/heads/<target_branch>`、`refs/remotes/*/<target_branch>` 是否存在，并使用该 ref 的 tree 和 blob 进行后续搜索、读取和行号计算。
+3. 指定分支不存在时，回退到默认分支，并在报告中记录回退原因。
 4. 报告页首只展示业务标题、涉及仓库、分析分支和生成日期；不要展示 commit SHA 或纳入文件数。
 5. 报告页首必须写明：`本次基于 <branch> 分支`。
 6. 报告页首必须写明：`代码定位行号基于 <branch> 分支；阅读时建议将工作区切到该分支。`

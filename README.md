@@ -35,12 +35,12 @@ codebase-storyteller/
 
 ## 首次配置
 
-打开 `SKILL.md` 的第 1 段“仓库配置”，填写本地仓库根目录和默认编辑器：
+首次运行时，skill 会在根目录创建 `config.local.yaml`。这个文件保存本机仓库路径和编辑器配置，已被 `.gitignore` 忽略，不会随公开仓库发布。内容如下：
 
 ```yaml
 repository_root: "/workspace"
 repository_paths: {}
-target_branch: release
+target_branch: auto
 editor:
   kind: vscode
   uri_template: "vscode://file/{path}:{line}:1"
@@ -70,7 +70,7 @@ editor:
   fallback_command: "idea --line '{line}' --column 1 '{path}'"
 ```
 
-首次调用时未配置仓库根目录或编辑器，skill 会停下来询问并将答案写回配置。
+首次调用时未配置仓库根目录或编辑器，skill 会停下来询问并将答案写回 `config.local.yaml`。后续调用直接复用，不会重复询问。
 
 ## 调用方式
 
@@ -82,7 +82,7 @@ $codebase-storyteller
 业务：库存出库
 ```
 
-默认读取配置中的 `release` 分支，通过 Git branch tree 获取内容，不切换或改动当前工作区。报告写入：
+默认读取每个目标仓库的默认分支（例如 `main`、`master` 或 `release`），通过 Git branch tree 获取内容，不切换或改动当前工作区。需要固定分支时，在调用中填写 `分支：release` 或在 `config.local.yaml` 中设置 `target_branch`。报告写入：
 
 ```text
 ~/.codex/skills/codebase-storyteller/reports/库存出库--order-service.html
@@ -137,7 +137,7 @@ skill 会先从 API、MQ consumer、定时任务和模块边界识别核心业�
 
 发布前检查：
 
-1. 保持 `repository_root` 为空，不提交本机路径或仓库映射。
+1. 不提交 `config.local.yaml`，不要把本机路径或仓库映射写入公开版 `SKILL.md`。
 2. 不提交 `reports/` 内的真实业务报告。
 3. 选择并添加适合你的开源许可证。
 4. 检查 README、示例、截图和 Git 历史中没有内部仓库名、域名、客户信息或代码。
